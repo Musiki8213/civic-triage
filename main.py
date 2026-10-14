@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import os
 import random
 
 from fastapi import FastAPI, HTTPException
@@ -9,13 +10,27 @@ import pandas as pd
 
 app = FastAPI(title="CivicTriage API")
 
+# Comma-separated list of allowed origins, configured per environment.
+# Example: "https://your-app.vercel.app,http://localhost:3000"
+_default_origins = "http://localhost:3000,http://127.0.0.1:3000"
+allowed_origins = [
+    origin.strip()
+    for origin in os.getenv("ALLOWED_ORIGINS", _default_origins).split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.get("/")
+def health_check():
+    return {"status": "ok", "service": "CivicTriage API"}
 
 pipeline = joblib.load("civicfix_model.joblib")
 db_complaints = []
