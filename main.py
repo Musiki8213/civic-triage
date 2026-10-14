@@ -49,7 +49,9 @@ COMPLAINTS_COLLECTION = "complaints"
 def _init_firestore():
     raw = os.getenv("FIREBASE_CREDENTIALS")
     if not raw:
+        print("[FIRESTORE] FIREBASE_CREDENTIALS env var is NOT set -> using in-memory store")
         return None
+    print(f"[FIRESTORE] FIREBASE_CREDENTIALS detected (length={len(raw)}), attempting init...")
     try:
         import firebase_admin
         from firebase_admin import credentials, firestore
@@ -57,9 +59,11 @@ def _init_firestore():
         cred = credentials.Certificate(json.loads(raw))
         if not firebase_admin._apps:
             firebase_admin.initialize_app(cred)
-        return firestore.client()
+        client = firestore.client()
+        print("[FIRESTORE] Initialized successfully -> using Firestore")
+        return client
     except Exception as exc:  # pragma: no cover - startup diagnostics
-        print(f"[WARN] Firestore not initialized, using in-memory store: {exc}")
+        print(f"[FIRESTORE][ERROR] init failed ({type(exc).__name__}): {exc} -> using in-memory store")
         return None
 
 
