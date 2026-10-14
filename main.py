@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import json
 import os
 import random
 
@@ -27,13 +28,96 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+pipeline = joblib.load("civicfix_model.joblib")
+
+# OLD (in-memory storage, replaced by Firestore below):
+# db_complaints = []
+
+COMPLAINTS_COLLECTION = "complaints"
+
+
+# ---------------------------------------------------------------------------
+# Storage layer
+#
+# In production we store complaints in Google Cloud Firestore so they survive
+# server restarts. Credentials are supplied via the FIREBASE_CREDENTIALS
+# environment variable (the full service-account JSON) so no secret ever lives
+# in the repo. If Firestore is not configured (e.g. local development without
+# credentials) we fall back to an in-memory list so the app still runs.
+# ---------------------------------------------------------------------------
+
+def _init_firestore():
+    raw = os.getenv("FIREBASE_CREDENTIALS")
+    if not raw:
+        return None
+    try:
+        import firebase_admin
+        from firebase_admin import credentials, firestore
+
+        cred = credentials.Certificate(json.loads(raw))
+        if not firebase_admin._apps:
+            firebase_admin.initialize_app(cred)
+        return firestore.client()
+    except Exception as exc:  # pragma: no cover - startup diagnostics
+        print(f"[WARN] Firestore not initialized, using in-memory store: {exc}")
+        return None
+
+
+_firestore = _init_firestore()
+_memory_complaints = []
+
+
+def store_complaint(complaint: dict) -> None:
+    if _firestore is not None:
+        _firestore.collection(COMPLAINTS_COLLECTION).add(complaint)
+    else:
+        _memory_complaints.append(complaint)
+
+
+def list_complaints() -> list:
+    if _firestore is not None:
+        docs = _firestore.collection(COMPLAINTS_COLLECTION).stream()
+        complaints = [doc.to_dict() for doc in docs]
+        complaints.sort(key=lambda c: c.get("created_at", ""), reverse=True)
+        return complaints
+    return list(reversed(_memory_complaints))
+
+
+def set_complaint_status(complaint_id: str, status: str):
+    if _firestore is not None:
+        query = (
+            _firestore.collection(COMPLAINTS_COLLECTION)
+            .where("id", "==", complaint_id)
+            .limit(1)
+            .stream()
+        )
+        for doc in query:
+            doc.reference.update({"status": status})
+            updated = doc.to_dict()
+            updated["status"] = status
+            return updated
+        return None
+
+    for complaint in _memory_complaints:
+        if complaint.get("id") == complaint_id:
+            complaint["status"] = status
+            return complaint
+    return None
+
+
+def complaint_count() -> int:
+    if _firestore is not None:
+        return len(list(_firestore.collection(COMPLAINTS_COLLECTION).stream()))
+    return len(_memory_complaints)
+
 
 @app.get("/")
 def health_check():
-    return {"status": "ok", "service": "CivicTriage API"}
-
-pipeline = joblib.load("civicfix_model.joblib")
-db_complaints = []
+    return {
+        "status": "ok",
+        "service": "CivicTriage API",
+        "storage": "firestore" if _firestore is not None else "in-memory",
+    }
 
 
 class ComplaintInput(BaseModel):
@@ -63,7 +147,9 @@ class ComplaintStatusUpdate(BaseModel):
 
 @app.get("/api/complaints")
 def get_complaints():
-    return db_complaints
+    # OLD (in-memory):
+    #     return db_complaints
+    return list_complaints()
 
 
 @app.put("/api/complaints/{complaint_id}/status")
@@ -72,12 +158,16 @@ def update_complaint_status(complaint_id: str, payload: ComplaintStatusUpdate):
     if payload.status not in allowed_statuses:
         raise HTTPException(status_code=400, detail=f"Invalid status '{payload.status}'. Allowed values: {sorted(allowed_statuses)}")
 
-    for complaint in db_complaints:
-        if complaint.get("id") == complaint_id:
-            complaint["status"] = payload.status
-            return complaint
-
-    raise HTTPException(status_code=404, detail=f"Complaint {complaint_id} not found")
+    # OLD (in-memory):
+    #     for complaint in db_complaints:
+    #         if complaint.get("id") == complaint_id:
+    #             complaint["status"] = payload.status
+    #             return complaint
+    #     raise HTTPException(status_code=404, detail=f"Complaint {complaint_id} not found")
+    updated = set_complaint_status(complaint_id, payload.status)
+    if updated is None:
+        raise HTTPException(status_code=404, detail=f"Complaint {complaint_id} not found")
+    return updated
 
 
 @app.post("/api/complaints")
@@ -97,7 +187,9 @@ def save_complaint(data: ComplaintLogInput):
         "status": data.status,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
-    db_complaints.append(complaint)
+    # OLD (in-memory):
+    #     db_complaints.append(complaint)
+    store_complaint(complaint)
     return {"message": f"Complaint {complaint_id} successfully logged to the queue.", "id": complaint_id}
 
 
@@ -130,8 +222,9 @@ def predict_urgency(data: ComplaintInput):
             "recommended_action": "Review immediately and follow emergency escalation." if prediction == 1 else "Assign to standard departmental queue.",
         }
 
+        # OLD (in-memory): id was f"#C3-{len(db_complaints) + 1:04d}"
         complaint = {
-            "id": f"#C3-{len(db_complaints) + 1:04d}",
+            "id": f"#C3-{complaint_count() + 1:04d}",
             "description": data.description,
             "category": data.department,
             "location": f"{data.suburb}, {data.ward}",
@@ -143,7 +236,9 @@ def predict_urgency(data: ComplaintInput):
             "recommended_action": result["recommended_action"],
             "explanation": result["explanation"],
         }
-        db_complaints.append(complaint)
+        # OLD (in-memory):
+        #     db_complaints.append(complaint)
+        store_complaint(complaint)
 
         return result
     except Exception as exc:
