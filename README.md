@@ -1,36 +1,148 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CivicFix Triage
+
+CivicFix Triage is a municipal service-request triage and operations platform designed to help local government teams prioritize infrastructure issues, route complaints, and support faster decision-making using AI-assisted urgency scoring.
+
+The system combines:
+
+- A Python-based predictive triage model for estimating urgency
+- A FastAPI service for complaint processing and triage logic
+- A Streamlit interface for rapid manual assessment and prediction
+- A Next.js operations dashboard for city service teams to review and manage cases
+
+## Overview
+
+The project is intended to support civic operations teams by transforming informal service reports into structured, actionable work items. It helps identify potentially high-risk issues, assign appropriate priorities, and provide a clear operational view of active and resolved complaints.
+
+## Key Features
+
+- AI-based urgency classification for civic complaints
+- Complaint logging and status tracking
+- Dashboard summaries for open, critical, assigned, and resolved cases
+- Department and location-aware triage inputs
+- Responsible-use guidance for all predictions to ensure human review remains in control
+
+## Architecture
+
+This repository contains three core components:
+
+- `app.py` — Streamlit user interface for manual triage prediction
+- `main.py` — FastAPI backend and complaint API
+- `civic-triage/` — Next.js dashboard for queue management and operational review
+
+## Repository Structure
+
+```text
+CivicFix_UI/
+├── app.py                  # Streamlit triage interface
+├── main.py                 # FastAPI API service
+├── civicfix_model.joblib   # Trained triage model
+├── AGENTS.md               # Agent guidance
+├── README.md               # Project documentation
+├── civic-triage/           # Front-end dashboard application
+│   ├── app/
+│   ├── components/
+│   ├── lib/
+│   ├── package.json
+│   └── ...
+└── ...
+```
+
+## Prerequisites
+
+Before running the project, make sure you have:
+
+- Python 3.10 or later
+- pip for Python package installation
+- Node.js 18+ and npm
+- A local environment capable of running a FastAPI backend and a Next.js application
 
 ## Getting Started
 
-First, run the development server:
+### 1. Install Python dependencies
+
+Install the packages required by the model and API, including:
+
+- `streamlit`
+- `fastapi`
+- `uvicorn`
+- `joblib`
+- `pandas`
+- `scikit-learn` (if required by the model pipeline)
+
+Example:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pip install streamlit fastapi uvicorn joblib pandas scikit-learn
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Run the FastAPI backend
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+From the project root:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+uvicorn main:app --reload
+```
 
-## Learn More
+The API will be available at:
 
-To learn more about Next.js, take a look at the following resources:
+- `http://localhost:8000/`
+- `http://localhost:8000/api/complaints`
+- `http://localhost:8000/api/triage`
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 3. Run the Streamlit triage tool
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+From the project root:
 
-## Deploy on Vercel
+```bash
+streamlit run app.py
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+This launches the complaint triage interface where users can submit municipal issue details and obtain urgency predictions.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### 4. Run the dashboard frontend
+
+From the `civic-triage` directory:
+
+```bash
+cd civic-triage
+npm install
+npm run dev
+```
+
+Then open the local dashboard in your browser at:
+
+- `http://localhost:3000`
+
+## API Overview
+
+The backend exposes endpoints to support complaint intake and operational triage.
+
+### Complaint endpoints
+
+- `GET /api/complaints` — View all logged complaints
+- `POST /api/complaints` — Create a new complaint entry
+- `PUT /api/complaints/{complaint_id}/status` — Update complaint status
+- `POST /api/triage` — Submit complaint details and receive urgency classification
+
+## Model Behavior
+
+The model uses complaint metadata such as:
+
+- department or complaint type
+- fault description
+- suburb and ward information
+- geographical coordinates
+
+It predicts whether a case is likely to require immediate attention or follow normal maintenance procedures. Predictions are advisory and should be reviewed by a responsible officer before dispatch or final escalation.
+
+## Responsible Use
+
+This tool is designed to support operational decision-making, not replace professional judgment. Any final dispatch or response decision must remain under the authority of the relevant civic operations supervisor or service team.
+
+## License
+
+This project is intended for internal or demonstration use unless otherwise specified by the owning organization. Add a formal license file if you intend to distribute or reuse the code beyond internal project use.
+
+## Contributing
+
+Contributions are welcome when aligned with the project’s operational and civic integrity goals. For any significant changes, please review the code paths affecting model behavior, API logic, and dashboard workflows before deployment.
