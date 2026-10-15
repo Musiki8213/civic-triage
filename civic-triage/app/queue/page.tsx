@@ -7,6 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
+// Base URL for the backend API, configured via NEXT_PUBLIC_API_URL.
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
 interface ComplaintRecord {
     id: string;
     description: string;
@@ -49,7 +52,8 @@ export default function ComplaintQueuePage() {
 
     const fetchComplaints = async () => {
         try {
-            const response = await axios.get("http://localhost:8000/api/complaints");
+            // OLD: const response = await axios.get("http://localhost:8000/api/complaints");
+            const response = await axios.get(`${API_URL}/api/complaints`);
             setComplaints(response.data ?? []);
         } catch (error) {
             console.error("Failed to fetch complaints", error);
@@ -65,7 +69,8 @@ export default function ComplaintQueuePage() {
 
     const updateComplaintStatus = async (complaintId: string, nextStatus: "Assigned" | "Resolved") => {
         try {
-            await axios.put(`http://localhost:8000/api/complaints/${encodeURIComponent(complaintId)}/status`, { status: nextStatus });
+            // OLD: await axios.put(`http://localhost:8000/api/complaints/${encodeURIComponent(complaintId)}/status`, { status: nextStatus });
+            await axios.put(`${API_URL}/api/complaints/${encodeURIComponent(complaintId)}/status`, { status: nextStatus });
             setComplaints((current) =>
                 current.map((complaint) =>
                     complaint.id === complaintId ? { ...complaint, status: nextStatus } : complaint
