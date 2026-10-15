@@ -108,8 +108,10 @@ export default function LogComplaintPage() {
 
         try {
             // OLD: const response = await axios.post("http://localhost:8000/api/triage", payload, { timeout: 5000 });
+            // Timeout raised from 5s to 60s so the request can wait out a
+            // free-tier backend cold start instead of falling back to the demo result.
             const response = await axios.post(`${API_URL}/api/triage`, payload, {
-                timeout: 5000,
+                timeout: 60000,
             });
             setResult({ ...response.data, source: "live" });
         } catch (error) {
