@@ -10,6 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
+// Base URL for the backend API, configured via NEXT_PUBLIC_API_URL.
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
 interface TriageResult {
     priority: string;
     confidence: number;
@@ -104,8 +107,11 @@ export default function LogComplaintPage() {
         };
 
         try {
-            const response = await axios.post("http://localhost:8000/api/triage", payload, {
-                timeout: 5000,
+            // OLD: const response = await axios.post("http://localhost:8000/api/triage", payload, { timeout: 5000 });
+            // Timeout raised from 5s to 60s so the request can wait out a
+            // free-tier backend cold start instead of falling back to the demo result.
+            const response = await axios.post(`${API_URL}/api/triage`, payload, {
+                timeout: 60000,
             });
             setResult({ ...response.data, source: "live" });
         } catch (error) {
@@ -161,7 +167,8 @@ export default function LogComplaintPage() {
         };
 
         try {
-            const response = await axios.post("http://localhost:8000/api/complaints", payload);
+            // OLD: const response = await axios.post("http://localhost:8000/api/complaints", payload);
+            const response = await axios.post(`${API_URL}/api/complaints`, payload);
             const complaintId = response.data?.id ?? "unknown";
             setSuccessMessage(`Complaint ${complaintId} successfully logged to the queue.`);
             setWarning(null);
